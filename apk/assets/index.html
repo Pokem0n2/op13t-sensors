@@ -26,6 +26,7 @@
   .sen{background:var(--card);border:1px solid var(--line);border-radius:12px;
        margin-bottom:8px;overflow:hidden}
   .row{display:flex;align-items:center;gap:10px;padding:11px 12px;cursor:pointer}
+  .dotbox{flex:none;width:30px;align-self:stretch;display:flex;align-items:center;justify-content:center;cursor:pointer}
   .dot{width:8px;height:8px;border-radius:50%;background:#c4c9d2;flex:none;transition:.2s}
   .dot.live{background:var(--ok);box-shadow:0 0 6px rgba(15,157,88,.55)}
   .main{flex:1;min-width:0}
@@ -137,14 +138,16 @@ function build(){
     var nm = s.name;
     html.push(
       '<div class="sen" id="sen'+i+'">',
-        '<div class="row" onclick="toggle('+i+')">',
-          '<div class="dot'+(listened[i]?' live':'')+'" id="dot'+i+'"></div>',
-          '<div class="main">',
+        '<div class="row">',
+          '<div class="dotbox" id="dbox'+i+'" onclick="tglListen('+i+')">',
+            '<div class="dot'+(listened[i]?' live':'')+'" id="dot'+i+'"></div>',
+          '</div>',
+          '<div class="main" onclick="toggle('+i+')">',
             '<div class="nm">'+nm+'</div>',
             '<div class="meta m1">'+tName(s.type)+' · '+s.vendor+' · v'+s.ver+'</div>',
           '</div>',
-          '<div class="val" id="val'+i+'"></div>',
-          '<div class="caret">▶</div>',
+          '<div class="val" id="val'+i+'" onclick="toggle('+i+')"></div>',
+          '<div class="caret" id="car'+i+'" onclick="toggle('+i+')">▶</div>',
         '</div>',
         '<div class="detail" id="dt'+i+'">',
           '<div class="kv"><b>字符串类型</b><span>'+s.stype+'</span></div>',
@@ -237,6 +240,10 @@ function purgeDead(){
   sensors = ks; listened = kl; lastEvt = ke; dead = {};
   build();
 }
+function tglListen(i){
+  if (listened[i]) stop(i);
+  else { listen(i); purgeDead(); }
+}
 function stop(i){
   try { Sensors.stop(i); } catch(ex){}
   listened[i] = false;
@@ -246,7 +253,7 @@ function stop(i){
 function updSum(){
   var n=0; for (var i=0;i<listened.length;i++) if (listened[i]) n++;
   document.getElementById("sum").textContent =
-    "共 "+sensors.length+" 个传感器 · 已监听 "+n;
+    "正在监听传感器 "+n+"/"+sensors.length;
 }
 function listenAll(){
   for (var i=0;i<sensors.length;i++) listen(i);
@@ -280,9 +287,9 @@ function init(){
     if (s.rm===2 || s.rm===3) { skipped++; continue; }   // 单次/特殊触发型 → 黄点类，过滤
     sensors.push(s);                                          // 其余全保留（含未知连续型）
   }
-  skipped = all.length - sensors.length;
   build();
-  listenAll();   // 默认全部监听
+  listenAll();   // 一次探测注册: 让注册失败的条目现形并被剔除
+  stopAll();     // 默认全部停止
 }
 document.getElementById("bAll").onclick = listenAll;
 document.getElementById("bNone").onclick = stopAll;
