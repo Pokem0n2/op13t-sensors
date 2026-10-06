@@ -72,9 +72,7 @@ var TYPE_META = {
   9:{n:"重力",u:"m/s²",ax:["X","Y","Z"]},
   10:{n:"线性加速度",u:"m/s²",ax:["X","Y","Z"]},
   11:{n:"旋转矢量",u:"",ax:["x","y","z","w","精度"]},
-  15:{n:"磁场(未校准)",u:"µT",ax:["X","Y","Z","X(bias)","Y(bias)","Z(bias)"]},
-  16:{n:"游戏旋转矢量",u:"",ax:["x","y","z","w"]},
-  35:{n:"加速度(未校准)",u:"m/s²",ax:["X","Y","Z","X(bias)","Y(bias)","Z(bias)"]}
+  33171055:{n:"光线",u:"lx",ax:["照度"]}
 };
 var RM_NAME = {0:"连续",1:"随变化",2:"单次",3:"特殊触发"};
 
@@ -144,19 +142,22 @@ function toggle(i){ document.getElementById("sen"+i).classList.toggle("open"); }
 
 /* ============ 数据刷新 ============ */
 var ACC_NAME = ["不可靠","低","中","高"];
+var MAXV = { 6: 1 };   // WANT序号->最多显示的分量数(6=OPLUS光感仅照度)
+function widOf(i){ return sensors[i] ? sensors[i].w : -1; }
 function renderVals(i){
   var s = sensors[i], e = lastEvt[i], el = els[i];
   if (!e) return;
   var m = TYPE_META[s.type];
+  var cap = MAXV[widOf(i)] || e.v.length;
   var parts = [];
-  for (var k=0;k<e.v.length;k++){
+  for (var k=0;k<cap;k++){
     var label = (m && m.ax && m.ax[k]) ? m.ax[k] : ("v"+k);
     parts.push(label+":"+fmt(e.v[k]));
   }
   el.val.textContent = parts.join("\n") + (m&&m.u?("\n"+m.u):"");
   if (document.getElementById("sen"+i).classList.contains("open")){
     var h = [];
-    for (var q=0;q<e.v.length;q++){
+    for (var q=0;q<cap;q++){
       var lb = (m && m.ax && m.ax[q]) ? m.ax[q] : ("v"+q);
       h.push('<div class="pv"><b>'+lb+'</b><span>'+fmt(e.v[q])+'</span></div>');
     }
@@ -240,17 +241,11 @@ var WANT = [
   "bmi26x Gyroscope",                        // 陀螺仪
   "gravity",                                 // 重力
   "linear_acceleration",                     // 线性加速度
-  "Game Rotation Vector",                    // 游戏旋转矢量
-  "bmi26x Accelerometer-Uncalibrated",       // 加速度(未校准)
-  "bmi26x Gyroscope-Uncalibrated",           // 陀螺仪(未校准)
-  "OPLUS Fusion Light Sensor Next Gen"       // 光线
+  "OPLUS Fusion Light Sensor Next Gen"       // 光线(仅显示照度)
 ];
 function matchWant(n){
   var s = String(n);
-  if (s.indexOf(WANT[7]) === 0) return 7;    // 加速度-U 前缀包含加速度, 先对长名
-  if (s.indexOf(WANT[8]) === 0) return 8;
   for (var k=0;k<WANT.length;k++){
-    if (k===7 || k===8) continue;
     if (s.indexOf(WANT[k]) === 0) return k;
   }
   return -1;
@@ -265,6 +260,7 @@ function init(){
   }
   for (var k=0;k<WANT.length;k++){
     if (!slot[k]) continue;                  // 本机没有的条目直接跳过
+    slot[k].w = k;                           // 记住 WANT 序号(分量上限等配置用)
     nat2loc[slot[k].i] = sensors.length;
     sensors.push(slot[k]);
   }
