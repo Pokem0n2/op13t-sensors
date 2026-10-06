@@ -47,7 +47,6 @@
   .pv b{display:block;font-size:10px;color:var(--sub);font-weight:500}
   .pv span{font-family:var(--mono);font-size:15px;color:var(--acc)}
   .age{font-size:11px;color:var(--sub)}
-  .error{font-size:12px;color:#d04040;margin-top:4px}
 </style>
 </head>
 <body>
@@ -117,7 +116,7 @@ var RM_NAME = {0:"连续",1:"随变化",2:"单次",3:"特殊触发"};
 
 var sensors = [];      // 过滤后的规格数组
 var listened = [];     // 是否已注册监听
-var errIdx  = {};      // idx -> 错误信息
+var dead = {};         // idx -> 注册失败, 待剔除
 var lastEvt = {};      // idx -> {t(事件ns), wall(本地ms), a, v[]}
 var els = {};          // idx -> {dot,val,pv,age,err}
 
@@ -139,7 +138,7 @@ function build(){
     html.push(
       '<div class="sen" id="sen'+i+'">',
         '<div class="row" onclick="toggle('+i+')">',
-          '<div class="dot" id="dot'+i+'"></div>',
+          '<div class="dot'+(listened[i]?' live':'')+'" id="dot'+i+'"></div>',
           '<div class="main">',
             '<div class="nm">'+nm+'</div>',
             '<div class="meta m1">'+tName(s.type)+' · '+s.vendor+' · v'+s.ver+'</div>',
@@ -158,7 +157,6 @@ function build(){
           '<div class="kv"><b>FIFO 上限</b><span>'+(s.fifo>0?s.fifo+" 事件":"无")+'</span></div>',
           '<div class="vals" id="pv'+i+'"></div>',
           '<div class="age" id="age'+i+'">未收到数据</div>',
-          '<div class="error" id="err'+i+'" style="display:none"></div>',
         '</div>',
       '</div>');
   }
@@ -167,8 +165,7 @@ function build(){
     els[j] = { dot:document.getElementById("dot"+j),
                val:document.getElementById("val"+j),
                pv:document.getElementById("pv"+j),
-               age:document.getElementById("age"+j),
-               err:document.getElementById("err"+j) };
+               age:document.getElementById("age"+j) };
   }
   updSum();
 }
@@ -216,23 +213,29 @@ window.__push = function(o){
 
 /* ============ 监听管理 ============ */
 function listen(i){
-  if (listened[i]) return;
+  if (listened[i] || dead[i]) return;
   var r = "异常";
-  try { r = Sensors.listen(i); } catch(ex){ r = ex && ex.message ? ex.message : String(ex); }
+  try { r = Sensors.listen(i); } catch(ex){ r = String(ex); }
   if (r === "ok"){
     listened[i] = true;
     els[i].dot.className = "dot live";
-    els[i].err.style.display = "none";
-  } else if (/permission|权限|Security/i.test(r)){
-    errIdx[i] = r;              // 权限缺失：保留，提示授权
-    els[i].err.textContent = r + "（点右上角\"全部监听\"触发授权弹窗，或到系统设置授权）";
-    els[i].err.style.display = "block";
   } else {
-    errIdx[i] = r;
-    els[i].err.textContent = "监听失败：" + r;
-    els[i].err.style.display = "block";
+    dead[i] = true;             // 注册失败 → 剔除
   }
-  updSum();
+}
+function purgeDead(){
+  var has = false;
+  for (var k in dead){ has = true; break; }
+  if (!has) { updSum(); return; }
+  var ks = [], kl = [], ke = {};
+  for (var i=0;i<sensors.length;i++){
+    if (dead[i]) continue;
+    ks.push(sensors[i]);
+    kl.push(!!listened[i]);
+    if (lastEvt[i]) ke[ks.length-1] = lastEvt[i];
+  }
+  sensors = ks; listened = kl; lastEvt = ke; dead = {};
+  build();
 }
 function stop(i){
   try { Sensors.stop(i); } catch(ex){}
@@ -247,9 +250,7 @@ function updSum(){
 }
 function listenAll(){
   for (var i=0;i<sensors.length;i++) listen(i);
-  var needPerm = false;
-  for (var k in errIdx){ if (/permission|权限|Security/i.test(errIdx[k])) needPerm = true; }
-  if (needPerm){ try { Sensors.askPerms(); } catch(ex){} }
+  purgeDead();
 }
 function stopAll(){
   try { Sensors.stopAll(); } catch(ex){}
@@ -266,7 +267,7 @@ window.__resume = function(){
     try { if (Sensors.listen(re[j]) === "ok") listened[re[j]] = true; } catch(ex){}
     if (listened[re[j]]) els[re[j]].dot.className = "dot live";
   }
-  updSum();
+  purgeDead();
 };
 
 /* ============ 启动：过滤规则 + 枚举 ============ */

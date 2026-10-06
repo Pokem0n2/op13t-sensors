@@ -2,7 +2,6 @@ package com.sensors.app;
 
 import android.app.Activity;
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -154,29 +153,6 @@ public class MainActivity extends Activity {
             for (int i = 0; i < active.length; i++) active[i] = false;
         }
 
-        /** 权限状态（步数/心率类传感器监听需要） */
-        @JavascriptInterface
-        public String permState() {
-            JSONObject o = new JSONObject();
-            boolean ar = false, bs = false;
-            if (Build.VERSION.SDK_INT >= 23) {
-                try {
-                    ar = act.checkSelfPermission("android.permission.ACTIVITY_RECOGNITION")
-                            == PackageManager.PERMISSION_GRANTED;
-                    bs = act.checkSelfPermission("android.permission.BODY_SENSORS")
-                            == PackageManager.PERMISSION_GRANTED;
-                } catch (Exception ignored) { }
-            } else {
-                ar = true; bs = true;   // API<29 声明即有
-            }
-            try { o.put("ar", ar); o.put("bs", bs); } catch (Exception ignored) { }
-            return o.toString();
-        }
-
-        @JavascriptInterface
-        public void askPerms() {
-            act.runOnUiThread(new PermAsk(act));
-        }
 
         // ---- SensorEventListener（主线程回调） ---- //
 
@@ -250,18 +226,4 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** 运行时权限请求 */
-    public static class PermAsk implements Runnable {
-        final Activity act;
-        PermAsk(Activity a) { act = a; }
-        public void run() {
-            if (Build.VERSION.SDK_INT >= 23) {
-                try {
-                    act.requestPermissions(new String[]{
-                            "android.permission.ACTIVITY_RECOGNITION",
-                            "android.permission.BODY_SENSORS"}, 1);
-                } catch (Exception ignored) { }
-            }
-        }
-    }
 }
