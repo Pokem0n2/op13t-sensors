@@ -233,14 +233,15 @@ function purgeDead(){
   var has = false;
   for (var k in dead){ has = true; break; }
   if (!has) { updSum(); return; }
-  var ks = [], kl = [], ke = {};
+  var ks = [], kl = [], ke = {}, kmap = {};
   for (var i=0;i<sensors.length;i++){
     if (dead[i]) continue;
+    kmap[sensors[i].i] = ks.length;      // 映射表必须随列表重建, 否则事件按旧位置落卡
     ks.push(sensors[i]);
     kl.push(!!listened[i]);
     if (lastEvt[i]) ke[ks.length-1] = lastEvt[i];
   }
-  sensors = ks; listened = kl; lastEvt = ke; dead = {};
+  sensors = ks; listened = kl; lastEvt = ke; nat2loc = kmap; dead = {};
   build();
 }
 function tglListen(i){
