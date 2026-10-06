@@ -115,7 +115,8 @@ var TYPE_META = {
 };
 var RM_NAME = {0:"连续",1:"随变化",2:"单次",3:"特殊触发"};
 
-var sensors = [];      // 过滤后的规格数组
+var sensors = [];      // 过滤后的规格数组(本地序号)
+var nat2loc = {};      // 原生序号 -> 本地序号(过滤后错位, 一切跨桥索引必须映射)
 var listened = [];     // 是否已注册监听
 var dead = {};         // idx -> 注册失败, 待剔除
 var lastEvt = {};      // idx -> {t(事件ns), wall(本地ms), a, v[]}
@@ -146,8 +147,8 @@ function build(){
             '<div class="nm">'+nm+'</div>',
             '<div class="meta m1">'+tName(s.type)+' · '+s.vendor+' · v'+s.ver+'</div>',
           '</div>',
-          '<div class="val" id="val'+i+'" onclick="toggle('+i+')"></div>',
-          '<div class="caret" id="car'+i+'" onclick="toggle('+i+')">▶</div>',
+          '<div class="val" id="val'+i+'" onclick="event.stopPropagation();toggle('+i+')"></div>',
+          '<div class="caret" id="car'+i+'" onclick="event.stopPropagation();toggle('+i+')">▶</div>',
         '</div>',
         '<div class="detail" id="dt'+i+'">',
           '<div class="kv"><b>字符串类型</b><span>'+s.stype+'</span></div>',
@@ -208,7 +209,9 @@ function renderVals(i){
 /* 原生推送入口（200ms 批量） */
 window.__push = function(o){
   for (var k in o){
-    var i = +k, d = o[k];
+    var i = nat2loc[+k];              // 原生序号 → 本地卡片
+    if (i === undefined) continue;    // 已剔除的传感器(黑名单等)直接丢弃
+    var d = o[k];
     lastEvt[i] = { t:d.t, wall:Date.now(), a:d.a, v:d.v };
     renderVals(i);
   }
@@ -218,7 +221,7 @@ window.__push = function(o){
 function listen(i){
   if (listened[i] || dead[i]) return;
   var r = "异常";
-  try { r = Sensors.listen(i); } catch(ex){ r = String(ex); }
+  try { r = Sensors.listen(sensors[i].i); } catch(ex){ r = String(ex); }
   if (r === "ok"){
     listened[i] = true;
     els[i].dot.className = "dot live";
@@ -245,7 +248,7 @@ function tglListen(i){
   else { listen(i); purgeDead(); }
 }
 function stop(i){
-  try { Sensors.stop(i); } catch(ex){}
+  try { Sensors.stop(sensors[i].i); } catch(ex){}
   listened[i] = false;
   els[i].dot.className = "dot";
   els[i].val.textContent = "";
@@ -303,6 +306,7 @@ function init(){
     var s = all[i];
     if (s.rm===2 || s.rm===3) { skipped++; continue; }   // 单次/特殊触发型 → 过滤
     if (blocked(s.name)) continue;                        // 黑名单条目
+    nat2loc[s.i] = sensors.length;
     sensors.push(s);                                       // 其余全保留（含未知连续型）
   }
   skipped = all.length - sensors.length;
