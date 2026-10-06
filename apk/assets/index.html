@@ -138,11 +138,11 @@ function build(){
     var nm = s.name;
     html.push(
       '<div class="sen" id="sen'+i+'">',
-        '<div class="row">',
-          '<div class="dotbox" id="dbox'+i+'" onclick="tglListen('+i+')">',
+        '<div class="row" onclick="tglListen('+i+')">',
+          '<div class="dotbox" id="dbox'+i+'">',
             '<div class="dot'+(listened[i]?' live':'')+'" id="dot'+i+'"></div>',
           '</div>',
-          '<div class="main" onclick="toggle('+i+')">',
+          '<div class="main">',
             '<div class="nm">'+nm+'</div>',
             '<div class="meta m1">'+tName(s.type)+' · '+s.vendor+' · v'+s.ver+'</div>',
           '</div>',
@@ -248,6 +248,14 @@ function stop(i){
   try { Sensors.stop(i); } catch(ex){}
   listened[i] = false;
   els[i].dot.className = "dot";
+  els[i].val.textContent = "";
+  updSum();
+}
+function stopAll(){
+  try { Sensors.stopAll(); } catch(ex){}
+  for (var i=0;i<listened.length;i++){
+    listened[i]=false; els[i].dot.className="dot"; els[i].val.textContent="";
+  }
   updSum();
 }
 function updSum(){
@@ -258,11 +266,6 @@ function updSum(){
 function listenAll(){
   for (var i=0;i<sensors.length;i++) listen(i);
   purgeDead();
-}
-function stopAll(){
-  try { Sensors.stopAll(); } catch(ex){}
-  for (var i=0;i<listened.length;i++){ listened[i]=false; els[i].dot.className="dot"; }
-  updSum();
 }
 
 /* 前后台切换：onPause 已全部注销，resume 后按页面状态重挂 */
