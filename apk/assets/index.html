@@ -281,15 +281,31 @@ window.__resume = function(){
 };
 
 /* ============ 启动：过滤规则 + 枚举 ============ */
+/* 名称前缀黑名单（用户指定删除的条目） */
+var BLOCK_PREFIX = [
+  "tcs3720 prox",     // tcs3720 Proximity Sensor Wakeup
+  "stk37600",         // stk37600 开头的两个（RGB Rear / Ambient Light）
+  "phone_prox",       // phone_prox phone prox Sensor Wakeup
+  "lay_detect",       // lay_detect Non-wakeup
+  "car_motion"        // car_motion Non-wakeup
+];
+function blocked(name){
+  var n = String(name).trim().toLowerCase();
+  for (var k=0;k<BLOCK_PREFIX.length;k++)
+    if (n.indexOf(BLOCK_PREFIX[k]) === 0) return true;
+  return false;
+}
 function init(){
   var raw = Sensors.getSensors();
   var all = JSON.parse(raw);
   var skipped = 0;
   for (var i=0;i<all.length;i++){
     var s = all[i];
-    if (s.rm===2 || s.rm===3) { skipped++; continue; }   // 单次/特殊触发型 → 黄点类，过滤
-    sensors.push(s);                                          // 其余全保留（含未知连续型）
+    if (s.rm===2 || s.rm===3) { skipped++; continue; }   // 单次/特殊触发型 → 过滤
+    if (blocked(s.name)) continue;                        // 黑名单条目
+    sensors.push(s);                                       // 其余全保留（含未知连续型）
   }
+  skipped = all.length - sensors.length;
   build();
   listenAll();   // 一次探测注册: 让注册失败的条目现形并被剔除
   stopAll();     // 默认全部停止
