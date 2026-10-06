@@ -145,12 +145,18 @@ public class MainActivity extends Activity {
             if (idx < 0 || idx >= all.size()) return;
             sm.unregisterListener(this, (Sensor) all.get(idx));
             active[idx] = false;
+            dirty[idx] = false;          // 停用即弃缓存: 注销前的事件不得再被补推
+            vals[idx] = null;
         }
 
         @JavascriptInterface
         public void stopAll() {
             sm.unregisterListener(this);
-            for (int i = 0; i < active.length; i++) active[i] = false;
+            for (int i = 0; i < active.length; i++) {
+                active[i] = false;
+                dirty[i] = false;
+                vals[i] = null;
+            }
         }
 
 

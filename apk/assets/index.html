@@ -172,7 +172,8 @@ function renderVals(i){
 window.__push = function(o){
   for (var k in o){
     var i = nat2loc[+k];              // 原生序号 → 本地卡片
-    if (i === undefined) continue;    // 已剔除的传感器(黑名单等)直接丢弃
+    if (i === undefined) continue;    // 清单外的推送直接丢弃
+    if (!listened[i]) continue;       // 未在监听的卡片不接收(迟到数据防线)
     var d = o[k];
     lastEvt[i] = { t:d.t, wall:Date.now(), a:d.a, v:d.v };
     renderVals(i);
