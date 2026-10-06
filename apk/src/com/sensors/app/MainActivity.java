@@ -122,19 +122,22 @@ public class MainActivity extends Activity {
             return a.toString();
         }
 
+        /** 返回 "ok" 或失败原因（JS 据此区分权限缺失 vs 硬失败） */
         @JavascriptInterface
-        public boolean listen(int idx) {
-            if (idx < 0 || idx >= all.size()) return false;
+        public String listen(int idx) {
+            if (idx < 0 || idx >= all.size()) return "索引越界";
             Sensor s = (Sensor) all.get(idx);
             try {
                 boolean ok = sm.registerListener(this, s, SensorManager.SENSOR_DELAY_UI);
                 if (ok) {
                     active[idx] = true;
                     startPush();
+                    return "ok";
                 }
-                return ok;
+                return "注册被拒绝";
             } catch (Exception e) {
-                return false;     // 典型：步数/心率未授权(SecurityException)
+                String m = e.getMessage();
+                return e.getClass().getSimpleName() + (m == null ? "" : ": " + m);
             }
         }
 
