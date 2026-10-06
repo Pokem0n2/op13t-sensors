@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 矢量前景：信息圆环 + i 符号（viewport 24 单位 = 108dp 画布，1 单位 = 4.5dp）。
+     v0.7.3 缩小：圆环外半径 10 → 6.9 单位（31dp），落在自适应图标 66dp
+     安全区内，四周留白 5dp（≈20px @xxxhdpi），不再触边被裁。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- 外环（evenodd 挖空成圆环），圆心 (12,12) 外半径 6.9 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,5.1 a6.9,6.9 0 1,0 0.001,0 z M12,6.55 a5.45,5.45 0 1,1 -0.001,0 z"
+        android:fillType="evenOdd"/>
+    <!-- i 的点：圆心 (12,8.87) 半径 1.02 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,7.85 a1.02,1.02 0 1,0 0.001,0 z"/>
+    <!-- i 的竖杠：x 11.11-12.89, y 11.09-16.31 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M11.11,11.09 h1.78 v5.22 h-1.78 z"/>
+</vector>

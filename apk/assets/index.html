@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>OP13T 传感器</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --card:#ffffff; --ink:#1c1d1f; --sub:#8a8f99;
+    --line:#e8eaee; --acc:#2f6fed; --ok:#0f9d58; --warn:#e8a300;
+    --mono:ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{background:var(--bg);color:var(--ink);
+       font:15px/1.5 -apple-system,"HarmonyOS Sans SC","PingFang SC","Noto Sans CJK SC",sans-serif;
+       padding-bottom:40px}
+  header{position:sticky;top:0;z-index:9;background:rgba(244,245,247,.94);
+         backdrop-filter:blur(8px);padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+  header h1{font-size:19px;font-weight:600}
+  header .sub{font-size:12px;color:var(--sub);margin-top:2px}
+  .toolbar{display:flex;gap:8px;margin-top:10px}
+  .toolbar button{flex:1;border:1px solid var(--line);background:var(--card);color:var(--ink);
+                  border-radius:10px;padding:8px 0;font-size:13px;font-weight:500}
+  .toolbar button.on{border-color:var(--acc);color:var(--acc)}
+  .hint{font-size:11px;color:var(--sub);padding:8px 16px 0}
+  /* ---- 传感器卡片 ---- */
+  #list{padding:10px 12px}
+  .sen{background:var(--card);border:1px solid var(--line);border-radius:12px;
+       margin-bottom:8px;overflow:hidden}
+  .row{display:flex;align-items:center;gap:10px;padding:11px 12px;cursor:pointer}
+  .dot{width:8px;height:8px;border-radius:50%;background:#c4c9d2;flex:none;transition:.2s}
+  .dot.live{background:var(--ok);box-shadow:0 0 6px rgba(15,157,88,.55)}
+  .dot.trig{background:var(--warn)}
+  .main{flex:1;min-width:0}
+  .nm{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .meta{font-size:11px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .val{font-family:var(--mono);font-size:12px;color:var(--acc);text-align:right;
+       white-space:pre;line-height:1.35;flex:none;max-width:46%}
+  .caret{color:#b6bac3;font-size:11px;flex:none;transition:.2s}
+  .sen.open .caret{transform:rotate(90deg)}
+  .detail{display:none;border-top:1px dashed var(--line);padding:10px 12px 12px;background:#fafbfd}
+  .sen.open .detail{display:block}
+  .kv{display:flex;font-size:12px;padding:2.5px 0}
+  .kv b{width:88px;flex:none;color:var(--sub);font-weight:400}
+  .kv span{font-family:var(--mono);word-break:break-all}
+  .vals{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 6px}
+  .pv{background:#eef2fd;border-radius:8px;padding:5px 9px;font-size:12px}
+  .pv b{display:block;font-size:10px;color:var(--sub);font-weight:500}
+  .pv span{font-family:var(--mono);font-size:15px;color:var(--acc)}
+  .age{font-size:11px;color:var(--sub)}
+  .age.flash{color:var(--warn)}
+  .error{font-size:12px;color:#d04040}
+</style>
+</head>
+<body>
+<header>
+  <h1>OP13T 传感器</h1>
+  <div class="sub" id="sum">枚举中…</div>
+  <div class="toolbar">
+    <button id="bAll">全部监听</button>
+    <button id="bNone">全部停止</button>
+    <button id="bExpand">全部展开</button>
+  </div>
+</header>
+<div class="hint">绿点=实时流 · 黄点=触发型(待触发) · 灰点=未监听 · 点卡片展开规格与实时值</div>
+<div id="list"></div>
+
+<script>
+/* ================= 类型知识表：单位 / 各分量含义 ================= */
+var TYPE_META = {
+  1:{u:"m/s²", ax:["X","Y","Z"]},           // 加速度
+  2:{u:"µT",   ax:["X","Y","Z"]},           // 磁场
+  3:{u:"方向", ax:[]},
+  4:{u:"rad/s",ax:["X","Y","Z"]},           // 陀螺仪
+  5:{u:"lx",   ax:["照度"]},
+  6:{u:"hPa",  ax:["气压"]},
+  8:{u:"cm",   ax:["距离"]},
+  9:{u:"m/s²", ax:["X","Y","Z"]},           // 重力
+  10:{u:"m/s²",ax:["X","Y","Z"]},           // 线性加速度
+  11:{u:"",    ax:["x","y","z","w","精度"]}, // 旋转矢量
+  12:{u:"%",   ax:["相对湿度"]},
+  13:{u:"°C",  ax:["环境温度"]},
+  15:{u:"µT",  ax:["X(bias)","Y(bias)","Z(bias)"]},
+  16:{u:"",    ax:["x","y","z","w","精度"]},
+  17:{u:"",    ax:["x","y","z","w","精度"]},
+  18:{u:"°",   ax:["方位角","俯仰","滚转"]},
+  19:{u:"bpm", ax:["心率"]},
+  21:{u:"步",  ax:["累计步数"]},
+  22:{u:"",    ax:["步检测"]},
+  23:{u:"",    ax:["显著运动"]},
+  24:{u:"°C",  ax:["温度"]},
+  25:{u:"",    ax:["x","y","z","w","漂移精度"]},
+  29:{u:"bpm", ax:["心率(质量标记)"]},
+  34:{u:"步",  ax:["累计步数(低延迟)"]},
+  35:{u:"",    ax:["拿起手势"]},
+  36:{u:"",    ax:["倾斜检测"]},
+  37:{u:"",    ax:["唤醒手势"]},
+  38:{u:"",    ax:["瞥看手势"]},
+  39:{u:"",    ax:["佩戴检测"]},
+  40:{u:"次",  ax:["有限手势"]},
+  41:{u:"",    ax:["动态元事件"]},
+  42:{u:"",    ax:["低延迟离体检测"]},
+  43:{u:"μmol/m²s", ax:["PPG"]},
+  46:{u:"",    ax:["头追踪"]},
+  47:{u:"",    ax:["跨轴跟踪"]}
+};
+var TYPE_NAME = {
+  1:"加速度",2:"磁场",4:"陀螺仪",5:"光线",6:"气压",8:"距离",
+  9:"重力",10:"线性加速度",11:"旋转矢量",12:"湿度",13:"环境温度",
+  15:"磁场(未校准)",16:"游戏旋转向量",17:"地磁旋转向量",18:"方向(旧)",
+  19:"心率",21:"计步器",22:"步检测",23:"显著运动",24:"温度(旧)",
+  25:"地磁旋转矢量(旧)",29:"心率(质量)",34:"低延迟计步",35:"拿起",
+  36:"倾斜检测",37:"唤醒手势",38:"瞥看手势",39:"佩戴检测",
+  40:"有限手势",41:"动态元事件",42:"低延迟离体",43:"PPG",46:"头部追踪",47:"跨轴跟踪"
+};
+function tName(t){ return TYPE_NAME[t] || ("类型"+t); }
+function tMeta(t){ return TYPE_META[t] || {u:"", ax:null}; }
+
+var RM_NAME = {0:"连续",1:"随变化",2:"单次",3:"特殊触发"};
+
+var sensors = [];      // 规格数组
+var listened = [];     // 是否已注册监听
+var errIdx  = {};      // 注册失败的传感器 idx -> 原因
+var lastEvt = {};      // idx -> {t(事件ns), wall(本地ms), a, v[]}
+var els = {};          // idx -> {row, dot, val, valEls[], age}
+
+var MODE_RM = 2, MODE_TRIG = 3;
+
+/* ================= 渲染 ================= */
+function fmt(x){
+  var a = Math.abs(x);
+  if (a >= 100) return x.toFixed(1);
+  if (a >= 10)  return x.toFixed(2);
+  if (a >= 1)   return x.toFixed(3);
+  if (a >= 0.001 || a === 0) return x.toFixed(4);
+  return x.toExponential(2);
+}
+function build(){
+  var list = document.getElementById("list");
+  var html = [];
+  for (var i=0;i<sensors.length;i++){
+    var s = sensors[i];
+    var cls = (s.rm==MODE_RM||s.rm==MODE_TRIG) ? "trig" : "";
+    html.push(
+      '<div class="sen" id="sen'+i+'">',
+        '<div class="row" onclick="toggle('+i+')">',
+          '<div class="dot '+cls+'" id="dot'+i+'"></div>',
+          '<div class="main">',
+            '<div class="nm">'+s.name+'</div>',
+            '<div class="meta">'+tName(s.type)+' · '+s.vendor+' · v'+s.ver+'</div>',
+          '</div>',
+          '<div class="val" id="val'+i+'"></div>',
+          '<div class="caret">▶</div>',
+        '</div>',
+        '<div class="detail" id="dt'+i+'">',
+          '<div class="kv"><b>字符串类型</b><span>'+s.stype+'</span></div>',
+          '<div class="kv"><b>上报模式</b><span>'+RM_NAME[s.rm]+(s.wk?' · 唤醒型':' · 非唤醒')+'</span></div>',
+          '<div class="kv"><b>功耗</b><span>'+s.pw+' mA</span></div>',
+          '<div class="kv"><b>分辨率</b><span>'+s.res+'</span></div>',
+          '<div class="kv"><b>最大量程</b><span>'+s.rng+'</span></div>',
+          '<div class="kv"><b>最小延迟</b><span>'+(s.mind<0?"触发型(无连续流)":s.mind+" µs")+'</span></div>',
+          '<div class="kv"><b>最大延迟</b><span>'+(s.maxd>0?s.maxd+" µs":"—")+'</span></div>',
+          '<div class="kv"><b>FIFO 上限</b><span>'+(s.fifo>0?s.fifo+" 事件":"无")+'</span></div>',
+          '<div class="vals" id="pv'+i+'"></div>',
+          '<div class="age" id="age'+i+'">未收到数据</div>',
+          '<div class="error" id="err'+i+'" style="display:none"></div>',
+        '</div>',
+      '</div>');
+  }
+  list.innerHTML = html.join("");
+  for (var j=0;j<sensors.length;j++){
+    els[j] = { dot:document.getElementById("dot"+j),
+               val:document.getElementById("val"+j),
+               pv:document.getElementById("pv"+j),
+               age:document.getElementById("age"+j),
+               err:document.getElementById("err"+j) };
+  }
+  document.getElementById("sum").textContent =
+    "共 "+sensors.length+" 个传感器 · 已监听 0";
+}
+function toggle(i){ document.getElementById("sen"+i).classList.toggle("open"); }
+
+/* ================= 数据刷新 ================= */
+var ACC_NAME = ["不可靠","低","中","高"];
+function renderVals(i){
+  var s = sensors[i], e = lastEvt[i], el = els[i];
+  if (!e) return;
+  var m = tMeta(s.type);
+  var parts = [];
+  for (var k=0;k<e.v.length;k++){
+    var label = (m.ax && m.ax[k]) ? m.ax[k] : ("v"+k);
+    parts.push(label+":"+fmt(e.v[k]));
+  }
+  el.val.textContent = parts.join("\n") + (m.u?("\n"+m.u):"");
+  // 展开态的分量块
+  if (document.getElementById("sen"+i).classList.contains("open")){
+    var h = [];
+    for (var q=0;q<e.v.length;q++){
+      var lb = (m.ax && m.ax[q]) ? m.ax[q] : ("v"+q);
+      h.push('<div class="pv"><b>'+lb+'</b><span>'+fmt(e.v[q])+'</span></div>');
+    }
+    if (m.u) h.push('<div class="pv"><b>单位</b><span>'+m.u+'</span></div>');
+    h.push('<div class="pv"><b>精度</b><span>'+ACC_NAME[e.a>=0?e.a:0]+'</span></div>');
+    el.pv.innerHTML = h.join("");
+  }
+  var dt = (Date.now() - e.wall)/1000;
+  el.age.textContent = "事件年龄 "+dt.toFixed(1)+"s · 精度 "+ACC_NAME[e.a>=0?e.a:0];
+}
+
+/* 原生推送入口（200ms 批量） */
+window.__push = function(o){
+  for (var k in o){
+    var i = +k, d = o[k];
+    lastEvt[i] = { t:d.t, wall:Date.now(), a:d.a, v:d.v };
+    renderVals(i);
+  }
+};
+
+/* ================= 监听管理 ================= */
+function listen(i){
+  if (listened[i]) return;
+  var ok = false, reason = "";
+  try { ok = Sensors.listen(i); }
+  catch(ex){ reason = ex && ex.message ? ex.message : String(ex); }
+  if (ok){
+    listened[i] = true;
+    var s = sensors[i];
+    els[i].dot.className = "dot " +
+      ((s.rm==MODE_RM||s.rm==MODE_TRIG) ? "trig" : "live");
+    els[i].err.style.display = "none";
+  } else {
+    reason = reason || "系统拒绝注册(可能需要权限或该传感器独占占用)";
+    errIdx[i] = reason;
+    els[i].err.textContent = reason;
+    els[i].err.style.display = "block";
+  }
+  updSum();
+}
+function stop(i){
+  try { Sensors.stop(i); } catch(ex){}
+  listened[i] = false;
+  els[i].dot.className = "dot";
+  updSum();
+}
+function updSum(){
+  var n=0; for (var i=0;i<listened.length;i++) if (listened[i]) n++;
+  document.getElementById("sum").textContent =
+    "共 "+sensors.length+" 个传感器 · 已监听 "+n;
+}
+function listenAll(){
+  for (var i=0;i<sensors.length;i++) listen(i);
+  // 需要权限而失败的，尝试申请一次
+  var needPerm = false;
+  for (var k in errIdx){ if (/permission|权限|Security/i.test(errIdx[k])) needPerm = true; }
+  if (needPerm){ try { Sensors.askPerms(); } catch(ex){} }
+}
+function stopAll(){
+  try { Sensors.stopAll(); } catch(ex){}
+  for (var i=0;i<listened.length;i++){ listened[i]=false; els[i].dot.className="dot"; }
+  updSum();
+}
+
+/* 前后台切换：onPause 已全部注销，resume 后按页面状态重挂 */
+window.__resume = function(){
+  var re = [];
+  for (var i=0;i<listened.length;i++) if (listened[i]) re.push(i);
+  for (var j=0;j<re.length;j++){
+    listened[re[j]] = false;
+    try { Sensors.listen(re[j]) && (listened[re[j]] = true); } catch(ex){}
+    if (listened[re[j]]) {
+      var s = sensors[re[j]];
+      els[re[j]].dot.className = "dot " +
+        ((s.rm==MODE_RM||s.rm==MODE_TRIG) ? "trig" : "live");
+    }
+  }
+  updSum();
+};
+
+/* ================= 启动 ================= */
+function init(){
+  var raw = Sensors.getSensors();
+  sensors = JSON.parse(raw);
+  build();
+  // 默认：连续型全部自动监听（初版目标=全量实时观察）
+  listenAll();
+}
+document.getElementById("bAll").onclick = listenAll;
+document.getElementById("bNone").onclick = stopAll;
+document.getElementById("bExpand").onclick = function(){
+  var any = false;
+  for (var i=0;i<sensors.length;i++)
+    if (!document.getElementById("sen"+i).classList.contains("open")) any=true;
+  for (var j=0;j<sensors.length;j++)
+    document.getElementById("sen"+j).classList.toggle("open", any);
+  this.textContent = any ? "全部收起" : "全部展开";
+};
+init();
+</script>
+</body>
+</html>

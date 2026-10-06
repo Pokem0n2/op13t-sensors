@@ -1,0 +1,8 @@
+apk/build/
+*.apk
+*.idsig
+*.unsigned.apk
+*.aligned.apk
+classes.dex
+.DS_Store
+*.log
