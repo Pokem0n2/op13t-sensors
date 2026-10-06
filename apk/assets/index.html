@@ -67,58 +67,20 @@
 var TYPE_META = {
   1:{n:"加速度",u:"m/s²",ax:["X","Y","Z"]},
   2:{n:"磁场",u:"µT",ax:["X","Y","Z"]},
-  3:{n:"方向(旧)",u:"°",ax:["方位角","俯仰","滚转"]},
   4:{n:"陀螺仪",u:"rad/s",ax:["X","Y","Z"]},
   5:{n:"光线",u:"lx",ax:["照度"]},
-  6:{n:"气压",u:"hPa",ax:["气压"]},
-  8:{n:"距离",u:"cm",ax:["距离"]},
   9:{n:"重力",u:"m/s²",ax:["X","Y","Z"]},
   10:{n:"线性加速度",u:"m/s²",ax:["X","Y","Z"]},
   11:{n:"旋转矢量",u:"",ax:["x","y","z","w","精度"]},
-  12:{n:"相对湿度",u:"%",ax:["相对湿度"]},
-  13:{n:"环境温度",u:"°C",ax:["环境温度"]},
   15:{n:"磁场(未校准)",u:"µT",ax:["X","Y","Z","X(bias)","Y(bias)","Z(bias)"]},
   16:{n:"游戏旋转矢量",u:"",ax:["x","y","z","w"]},
-  17:{n:"显著运动",u:"",ax:[""]},
-  18:{n:"步检测",u:"步",ax:[""]},
-  19:{n:"计步器",u:"步",ax:["累计步数"]},
-  20:{n:"地磁旋转矢量",u:"",ax:["x","y","z","w","精度"]},
-  21:{n:"心率",u:"bpm",ax:["心率"]},
-  22:{n:"倾斜检测",u:"",ax:[""]},
-  23:{n:"唤醒手势",u:"",ax:[""]},
-  24:{n:"瞥看手势",u:"",ax:[""]},
-  25:{n:"拿起",u:"",ax:[""]},
-   27:{n:"设备朝向",u:"",ax:["角度(2°/90°)","朝向(0-3)"]},
-  28:{n:"低延迟离体",u:"",ax:[""]},
-  29:{n:"有限手势",u:"",ax:[""]},
-  30:{n:"动态元事件",u:"",ax:[""]},
-  31:{n:"跨轴跟踪",u:"",ax:[""]},
-  34:{n:"低延迟计步",u:"步",ax:["步数","时间偏移"]},
-  35:{n:"加速度(未校准)",u:"m/s²",ax:["X","Y","Z","X(bias)","Y(bias)","Z(bias)"]},
-  36:{n:"地磁旋转矢量(未校准)",u:"",ax:["x","y","z","w","x(bias)","y(bias)","z(bias)"]},
-  37:{n:"头部追踪",u:"",ax:["x","y","z","w","速率","漂移"]},
-  38:{n:"跨轴跟踪(未校准)",u:"",ax:null},
-  39:{n:"受限姿态",u:"",ax:null},
-  40:{n:"心率(质量)",u:"bpm",ax:["心率"]},
-  41:{n:"PPG 环境光",u:"μmol/m²s",ax:null},
-  42:{n:"PPG 心率",u:"bpm",ax:null},
-  43:{n:"PPG 心率(未校准)",u:"bpm",ax:null},
-  44:{n:"PPG R波峰",u:"",ax:null},
-  45:{n:"PPG 皮电",u:"",ax:null},
-  46:{n:"闪存分配",u:"",ax:null},
-  47:{n:"光学心率(未校准)",u:"bpm",ax:null},
-  48:{n:"肌肉血氧",u:"%",ax:null},
-  49:{n:"腕部温度",u:"°C",ax:null},
-  51:{n:"增益",u:"",ax:null},
-  52:{n:"肩部触摸",u:"",ax:null},
-  53:{n:"电池容量",u:"mAh",ax:null}
+  35:{n:"加速度(未校准)",u:"m/s²",ax:["X","Y","Z","X(bias)","Y(bias)","Z(bias)"]}
 };
 var RM_NAME = {0:"连续",1:"随变化",2:"单次",3:"特殊触发"};
 
-var sensors = [];      // 过滤后的规格数组(本地序号)
-var nat2loc = {};      // 原生序号 -> 本地序号(过滤后错位, 一切跨桥索引必须映射)
+var sensors = [];      // 固定清单命中的传感器(本地序号)
+var nat2loc = {};      // 原生序号 -> 本地序号
 var listened = [];     // 是否已注册监听
-var dead = {};         // idx -> 注册失败, 待剔除
 var lastEvt = {};      // idx -> {t(事件ns), wall(本地ms), a, v[]}
 var els = {};          // idx -> {dot,val,pv,age,err}
 
@@ -219,34 +181,19 @@ window.__push = function(o){
 
 /* ============ 监听管理 ============ */
 function listen(i){
-  if (listened[i] || dead[i]) return;
+  if (listened[i]) return;
   var r = "异常";
   try { r = Sensors.listen(sensors[i].i); } catch(ex){ r = String(ex); }
   if (r === "ok"){
     listened[i] = true;
     els[i].dot.className = "dot live";
-  } else {
-    dead[i] = true;             // 注册失败 → 剔除
   }
+  updSum();
 }
-function purgeDead(){
-  var has = false;
-  for (var k in dead){ has = true; break; }
-  if (!has) { updSum(); return; }
-  var ks = [], kl = [], ke = {}, kmap = {};
-  for (var i=0;i<sensors.length;i++){
-    if (dead[i]) continue;
-    kmap[sensors[i].i] = ks.length;      // 映射表必须随列表重建, 否则事件按旧位置落卡
-    ks.push(sensors[i]);
-    kl.push(!!listened[i]);
-    if (lastEvt[i]) ke[ks.length-1] = lastEvt[i];
-  }
-  sensors = ks; listened = kl; lastEvt = ke; nat2loc = kmap; dead = {};
-  build();
-}
+
 function tglListen(i){
   if (listened[i]) stop(i);
-  else { listen(i); purgeDead(); }
+  else listen(i);
 }
 function stop(i){
   try { Sensors.stop(sensors[i].i); } catch(ex){}
@@ -269,7 +216,6 @@ function updSum(){
 }
 function listenAll(){
   for (var i=0;i<sensors.length;i++) listen(i);
-  purgeDead();
 }
 
 /* 前后台切换：onPause 已全部注销，resume 后按页面状态重挂 */
@@ -281,38 +227,48 @@ window.__resume = function(){
     try { if (Sensors.listen(re[j]) === "ok") listened[re[j]] = true; } catch(ex){}
     if (listened[re[j]]) els[re[j]].dot.className = "dot live";
   }
-  purgeDead();
+  updSum();
 };
 
-/* ============ 启动：过滤规则 + 枚举 ============ */
-/* 名称前缀黑名单（用户指定删除的条目） */
-var BLOCK_PREFIX = [
-  "tcs3720 prox",     // tcs3720 Proximity Sensor Wakeup
-  "stk37600",         // stk37600 开头的两个（RGB Rear / Ambient Light）
-  "phone_prox",       // phone_prox phone prox Sensor Wakeup
-  "lay_detect",       // lay_detect Non-wakeup
-  "car_motion"        // car_motion Non-wakeup
+/* ============ 固定传感器清单（不再全量枚举+过滤） ============ */
+/* 按名称匹配 device.getSensorList 中的原生条目, 同名取第一个; 未匹配的忽略 */
+var WANT = [
+  "bmi26x Accelerometer",                    // 加速度
+  "ak0991x Magnetometer",                    // 磁场
+  "Rotation Vector",                         // 旋转矢量
+  "bmi26x Gyroscope",                        // 陀螺仪
+  "gravity",                                 // 重力
+  "linear_acceleration",                     // 线性加速度
+  "Game Rotation Vector",                    // 游戏旋转矢量
+  "bmi26x Accelerometer-Uncalibrated",       // 加速度(未校准)
+  "bmi26x Gyroscope-Uncalibrated",           // 陀螺仪(未校准)
+  "OPLUS Fusion Light Sensor Next Gen"       // 光线
 ];
-function blocked(name){
-  var n = String(name).trim().toLowerCase();
-  for (var k=0;k<BLOCK_PREFIX.length;k++)
-    if (n.indexOf(BLOCK_PREFIX[k]) === 0) return true;
-  return false;
+function matchWant(n){
+  var s = String(n);
+  if (s.indexOf(WANT[7]) === 0) return 7;    // 加速度-U 前缀包含加速度, 先对长名
+  if (s.indexOf(WANT[8]) === 0) return 8;
+  for (var k=0;k<WANT.length;k++){
+    if (k===7 || k===8) continue;
+    if (s.indexOf(WANT[k]) === 0) return k;
+  }
+  return -1;
 }
 function init(){
   var raw = Sensors.getSensors();
   var all = JSON.parse(raw);
-  var skipped = 0;
+  var slot = {};   // want序 -> 原生传感器
   for (var i=0;i<all.length;i++){
-    var s = all[i];
-    if (s.rm===2 || s.rm===3) { skipped++; continue; }   // 单次/特殊触发型 → 过滤
-    if (blocked(s.name)) continue;                        // 黑名单条目
-    nat2loc[s.i] = sensors.length;
-    sensors.push(s);                                       // 其余全保留（含未知连续型）
+    var w = matchWant(all[i].name);
+    if (w >= 0 && !slot[w]) slot[w] = all[i];
   }
-  skipped = all.length - sensors.length;
+  for (var k=0;k<WANT.length;k++){
+    if (!slot[k]) continue;                  // 本机没有的条目直接跳过
+    nat2loc[slot[k].i] = sensors.length;
+    sensors.push(slot[k]);
+  }
   build();
-  listenAll();   // 一次探测注册: 让注册失败的条目现形并被剔除
+  listenAll();   // 探测注册+剔除失败
   stopAll();     // 默认全部停止
 }
 document.getElementById("bAll").onclick = listenAll;
