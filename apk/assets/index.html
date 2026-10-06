@@ -21,7 +21,6 @@
   .toolbar{display:flex;gap:8px;margin-top:10px}
   .toolbar button{flex:1;border:1px solid var(--line);background:var(--card);color:var(--ink);
                   border-radius:10px;padding:8px 0;font-size:13px;font-weight:500}
-  .hint{font-size:11px;color:var(--sub);padding:8px 16px 0}
   /* ---- 传感器卡片 ---- */
   #list{padding:10px 12px}
   .sen{background:var(--card);border:1px solid var(--line);border-radius:12px;
@@ -61,7 +60,6 @@
     <button id="bExpand">全部展开</button>
   </div>
 </header>
-<div class="hint">绿点=实时流 · 点卡片展开完整规格与实时值</div>
 <div id="list"></div>
 
 <script>
@@ -137,7 +135,7 @@ function build(){
   var html = [];
   for (var i=0;i<sensors.length;i++){
     var s = sensors[i];
-    var nm = s.name + (s.wk ? " ⏰" : "");
+    var nm = s.name;
     html.push(
       '<div class="sen" id="sen'+i+'">',
         '<div class="row" onclick="toggle('+i+')">',
@@ -177,7 +175,6 @@ function build(){
 function tName(t){
   var m = TYPE_META[t];
   if (m) return m.n;
-  if (t >= 32768) return "厂商私有";
   return "类型"+t;
 }
 function toggle(i){ document.getElementById("sen"+i).classList.toggle("open"); }
@@ -243,11 +240,10 @@ function stop(i){
   els[i].dot.className = "dot";
   updSum();
 }
-var hiddenNote = "";
 function updSum(){
   var n=0; for (var i=0;i<listened.length;i++) if (listened[i]) n++;
   document.getElementById("sum").textContent =
-    "共 "+sensors.length+" 个传感器 · 已监听 "+n + hiddenNote;
+    "共 "+sensors.length+" 个传感器 · 已监听 "+n;
 }
 function listenAll(){
   for (var i=0;i<sensors.length;i++) listen(i);
@@ -277,14 +273,13 @@ window.__resume = function(){
 function init(){
   var raw = Sensors.getSensors();
   var all = JSON.parse(raw);
-  var skipped = 0, skippedTrig = 0;
+  var skipped = 0;
   for (var i=0;i<all.length;i++){
     var s = all[i];
-    if (s.rm===2 || s.rm===3) { skippedTrig++; continue; }   // 单次/特殊触发型 → 黄点类，过滤
+    if (s.rm===2 || s.rm===3) { skipped++; continue; }   // 单次/特殊触发型 → 黄点类，过滤
     sensors.push(s);                                          // 其余全保留（含未知连续型）
   }
   skipped = all.length - sensors.length;
-  hiddenNote = (skipped>0 ? "（已隐藏触发型 "+skippedTrig+" 个）" : "");
   build();
   listenAll();   // 默认全部监听
 }
